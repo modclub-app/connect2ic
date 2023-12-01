@@ -31,7 +31,7 @@ class InternetIdentity implements IConnector {
     providerUrl: string,
     dev: boolean,
     derivationOrigin?: string,
-    ii_auth_config: any,
+    ii_auth_config?: any
   }
   #identity?: Identity
   #principal?: string
@@ -66,7 +66,13 @@ class InternetIdentity implements IConnector {
 
   async init() {
     try {
-      this.#client = await AuthClient.create(this.#config.ii_auth_config);
+      if (this.#config.ii_auth_config) {
+        // If ii_auth_config is provided, call create() with it
+        this.#client = await AuthClient.create(this.#config.ii_auth_config);
+      } else {
+        // If ii_auth_config is not provided, call create() without arguments
+        this.#client = await AuthClient.create();
+      }
       const isConnected = await this.isConnected()
       if (isConnected) {
         this.#identity = this.#client.getIdentity()
