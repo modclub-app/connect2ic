@@ -138,7 +138,7 @@ class PlugWallet implements IConnector, IWalletConnector {
           accountId: this.#ic.accountId,
         }
       }
-      return ok({ isConnected: false })
+      return ok({ isConnected: status === "connected" })
     } catch (e) {
       console.error(e)
       return err({ kind: InitError.InitFailed })
