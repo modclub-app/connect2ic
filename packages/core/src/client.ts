@@ -11,7 +11,7 @@ import type { ActorSubclass } from "@dfinity/agent"
 import type { IDL } from "@dfinity/candid"
 import type { CreateActorResult, IConnector, IWalletConnector } from "./providers/connectors"
 import { ok, Result } from "neverthrow"
-import { CreateActorError } from "./providers/connectors"
+import { CreateActorError, InitResult } from "./providers/connectors"
 
 type Provider = IConnector
 
@@ -99,24 +99,33 @@ const authStates: MachineConfig<RootContext, any, RootEvent> = {
         id: "init",
         src: (context, event) => async (callback, onReceive) => {
           const { providers } = context
-          await Promise.all(providers.map(p => p.init()))
-          let connectedProviders = providers.map(p => new Promise<Provider>(async (resolve, reject) => {
-            const isConnected = await p.isConnected()
-            isConnected ? resolve(p) : reject()
-          }))
-          // TODO: init failure
-          Promise.any(connectedProviders).then((connectedProvider) => {
-            callback({
-              type: "DONE_AND_CONNECTED",
-              data: {
-                providers,
-                activeProvider: connectedProvider,
-                principal: connectedProvider.principal!,
-              },
-            })
-          }).catch(e => {
+          const resultsWithProviders: { provider: IConnector; result: InitResult} [] = await Promise.all(providers.map(async p => {
+            const result = await p.init();
+            return { provider: p, result };
+          }));
+          
+          try {
+            const connectedResultWithProvider = resultsWithProviders.find(({ result }) =>
+              result.match(
+                (value) => value.isConnected,
+                () => false
+              )
+            );
+            if (connectedResultWithProvider) {
+              callback({
+                type: "DONE_AND_CONNECTED",
+                data: {
+                  providers,
+                  activeProvider: connectedResultWithProvider.provider,
+                  principal: connectedResultWithProvider.provider.principal!,
+                },
+              })
+            } else {
+              callback({ type: "DONE", data: { providers } })
+            }
+          } catch (e) {
             callback({ type: "DONE", data: { providers } })
-          })
+          }
         },
       },
       exit: ["onInit"],
